@@ -49,8 +49,31 @@ NodePort services are accessible via **ANY** node IP in the cluster thanks to ku
 
 ## Building the Plugin
 
+### Quick Build (Recommended)
+
+Use the automated build script:
+
 ```bash
-cd strimzi-stretch-nodeport-plugin
+./build-plugin.sh
+```
+
+This script will:
+1. Build and install Strimzi cluster-operator to local Maven repository
+2. Build the NodePort plugin JAR
+3. Verify the JAR contents
+4. Show next deployment steps
+
+### Manual Build
+
+If you prefer to build manually:
+
+```bash
+# First, build and install the Strimzi cluster-operator
+cd ../strimzi-kafka-operator
+mvn clean install -pl cluster-operator -am -DskipTests -Dcheckstyle.skip=true
+
+# Then build the plugin
+cd ../strimzi-stretch-nodeport-plugin
 mvn clean package
 ```
 
