@@ -4,56 +4,67 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>io.strimzi</groupId>
-        <artifactId>strimzi</artifactId>
-        <version>0.48.0</version>
-    </parent>
-
+    <groupId>io.strimzi</groupId>
     <artifactId>strimzi-stretch-nodeport-plugin</artifactId>
     <version>0.48.0</version>
+    <packaging>jar</packaging>
+
+    <name>Strimzi Stretch Cluster NodePort Plugin</name>
+    <description>NodePort networking provider plugin for Strimzi stretch clusters</description>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        
+        <!-- Dependency versions -->
+        <strimzi.version>0.48.0</strimzi.version>
+        <kubernetes-client.version>6.13.4</kubernetes-client.version>
+        <log4j.version>2.24.1</log4j.version>
+        <vertx.version>4.5.10</vertx.version>
+    </properties>
 
     <dependencies>
+        <!-- Strimzi Cluster Operator (provided - available at runtime) -->
         <dependency>
             <groupId>io.strimzi</groupId>
             <artifactId>cluster-operator</artifactId>
-            <version>${project.version}</version>
+            <version>${strimzi.version}</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>io.strimzi</groupId>
-            <artifactId>api</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
-        </dependency>
+
+        <!-- Kubernetes Client (provided) -->
         <dependency>
             <groupId>io.fabric8</groupId>
             <artifactId>kubernetes-client</artifactId>
+            <version>${kubernetes-client.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Vert.x (provided) -->
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-core</artifactId>
+            <version>${vertx.version}</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Logging (provided) -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
+            <version>${log4j.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>${maven.compiler.version}</version>
+                <version>3.10.1</version>
                 <configuration>
                     <source>17</source>
                     <target>17</target>
