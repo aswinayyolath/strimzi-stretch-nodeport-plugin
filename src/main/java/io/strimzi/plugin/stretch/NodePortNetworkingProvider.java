@@ -147,7 +147,20 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
 
         // Selector matches the specific pod
         Map<String, String> selector = new HashMap<>();
-        selector.put("statefulset.kubernetes.io/pod-name", podName);
+        boolean isLatencyTestPod = podName.startsWith("strimzi-latency-test-");
+
+        if (isLatencyTestPod) {
+            // Test pods have labels: app=strimzi-latency-test, strimzi.io/cluster-id=<cluster-id>, strimzi.io/kind=latency-test
+            // Use these labels to select the specific test pod
+            selector.put("app", "strimzi-latency-test");
+            selector.put("strimzi.io/cluster-id", clusterId);
+            selector.put("strimzi.io/kind", "latency-test");
+            LOGGER.debug("{}: Creating NodePort service for latency test pod {} with selector app=strimzi-latency-test, strimzi.io/cluster-id={}",
+                       reconciliation, podName, clusterId);
+        } else {
+            // Regular Kafka broker pods have strimzi.io/pod-name label
+            selector.put("strimzi.io/pod-name", podName);
+        }
 
         Service service = new ServiceBuilder()
             .withNewMetadata()
