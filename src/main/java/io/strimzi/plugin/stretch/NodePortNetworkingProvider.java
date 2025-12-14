@@ -119,13 +119,14 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
 
     @Override
     public Future<List<HasMetadata>> createNetworkingResources(Reconciliation reconciliation, 
-                                                               String namespace, 
                                                                String podName, 
                                                                String clusterId, 
                                                                Map<String, Integer> ports) {
         
         LOGGER.debug("{}: Creating NodePort resources for pod {} in cluster {}", 
                 reconciliation, podName, clusterId);
+
+        LOGGER.info("PORTS {}", ports);
 
         // Get the supplier for the target cluster
         ResourceOperatorSupplier supplier = getSupplier(clusterId);
@@ -152,7 +153,7 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
         Service service = new ServiceBuilder()
             .withNewMetadata()
                 .withName(serviceName)
-                .withNamespace(namespace)
+                .withNamespace(reconciliation.namespace())
                 .addToLabels("app", "strimzi")
                 .addToLabels("strimzi.io/cluster", reconciliation.name())
                 .addToLabels("strimzi.io/kind", "Kafka")
@@ -168,16 +169,16 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
             .build();
 
         return supplier.serviceOperations
-            .reconcile(reconciliation, namespace, serviceName, service)
-            .map(s -> Collections.singletonList((HasMetadata) s));
+            .reconcile(reconciliation, reconciliation.namespace(), serviceName, service)
+            .map(s -> Collections.singletonList((HasMetadata) service));
     }
 
     @Override
-    public Future<String> discoverPodEndpoint(Reconciliation reconciliation, 
-                                              String namespace, 
+    public Future<String> discoverPodEndpoint(String namespace, 
                                               String podName, 
                                               String clusterId, 
                                               String portName) {
+
         
         String serviceName = podName + "-nodeport";
         ResourceOperatorSupplier supplier = getSupplier(clusterId);
@@ -217,28 +218,36 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
                         " in service " + serviceName);
                 }
 
-                LOGGER.debug("{}: Discovered NodePort endpoint for pod {} in cluster {}: {}:{}", 
-                    reconciliation, podName, clusterId, finalNodeIp, nodePort);
                 return finalNodeIp + ":" + nodePort;
             });
     }
 
     @Override
-    public String generateServiceDnsName(String namespace, String serviceName, String clusterId) {
+    public Future<String> generateServiceDnsName(String namespace, String serviceName, String clusterId) {
         // NodePort doesn't really use DNS names for addressing across clusters usually,
         // but we can return the local service DNS name as a fallback or placeholder
-        return serviceName + "." + namespace + ".svc";
+        return Future.succeededFuture(serviceName + "." + namespace + ".svc");
     }
 
     @Override
-    public String generatePodDnsName(String namespace, String serviceName, String podName, String clusterId) {
-        // Similar to service DNS, return local pod DNS
-        return podName + "." + serviceName + "." + namespace + ".svc";
+    public Future<String> generatePodDnsName(String namespace, String serviceName, String podName, String clusterId) {
+        // Get cached node IP for this cluster
+        // NodePort exposes on ALL nodes, so we can use any worker node's IP
+        String nodeIp = clusterNodeIPs.get(clusterId);
+        if (nodeIp == null) {
+            // Fallback: try "central" if clusterId not found (shouldn't happen after init)
+            nodeIp = clusterNodeIPs.get("central");
+            if (nodeIp == null) {
+                return Future.failedFuture("No stable node IP found for cluster " + clusterId + 
+                    ". Plugin may not be properly initialized.");
+            }
+        }
+
+        return Future.succeededFuture(nodeIp);
     }
 
     @Override
     public Future<String> generateAdvertisedListeners(Reconciliation reconciliation, 
-                                                      String namespace, 
                                                       String podName, 
                                                       String clusterId, 
                                                       Map<String, String> listeners) {
@@ -251,7 +260,7 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
             String portName = entry.getValue();
             listenerKeys.add(listenerName);
             
-            futures.add(discoverPodEndpoint(reconciliation, namespace, podName, clusterId, portName));
+            futures.add(discoverPodEndpoint(reconciliation.namespace(), podName, clusterId, portName));
         }
 
         return Future.join(futures)
@@ -262,13 +271,13 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
                     String listenerName = listenerKeys.get(i);
                     advertisedListeners.add(listenerName + "://" + endpoint);
                 }
+                LOGGER.info("ADVERTISED LISTENERS: {}",String.join(",", advertisedListeners));
                 return String.join(",", advertisedListeners);
             });
     }
 
     @Override
     public Future<String> generateQuorumVoters(Reconciliation reconciliation, 
-                                               String namespace, 
                                                List<ControllerPodInfo> controllerPods, 
                                                String replicationPortName) {
         
@@ -277,7 +286,7 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
 
         for (ControllerPodInfo info : controllerPods) {
             nodeIds.add(info.nodeId());
-            futures.add(discoverPodEndpoint(reconciliation, namespace, info.podName(), info.clusterId(), replicationPortName));
+            futures.add(discoverPodEndpoint(reconciliation.namespace(), info.podName(), info.clusterId(), replicationPortName));
         }
 
         return Future.join(futures)
@@ -288,13 +297,14 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
                     int nodeId = nodeIds.get(i);
                     voters.add(nodeId + "@" + endpoint);
                 }
+                LOGGER.info("QUORUM VOTERS: {}",String.join(",", voters));
+
                 return String.join(",", voters);
             });
     }
 
     @Override
     public Future<Void> deleteNetworkingResources(Reconciliation reconciliation, 
-                                                  String namespace, 
                                                   String podName, 
                                                   String clusterId) {
         String serviceName = podName + "-nodeport";
@@ -305,7 +315,7 @@ public class NodePortNetworkingProvider implements StretchNetworkingProvider {
         }
 
         return supplier.serviceOperations
-            .reconcile(reconciliation, namespace, serviceName, null)
+            .reconcile(reconciliation, reconciliation.namespace(), serviceName, null)
             .mapEmpty();
     }
 
